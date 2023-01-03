@@ -46,6 +46,51 @@ def get_label_map() -> Dict:
     }
 
 
+def get_label_to_name() -> Dict:
+    """
+    Refernce:
+
+    (1) https://github.com/PRBonn/semantic-kitti-api/blob/master/config/semantic-kitti.yaml#L109-L143
+    (2) https://github.com/ika-rwth-aachen/PCLSegmentation/blob/main/dataset_convert/semantic_kitti_sequence.py#L71-L106
+    """
+    return {
+        0: "unlabeled",
+        1: "outlier",
+        10: "car",
+        11: "bicycle",
+        13: "bus",
+        15: "motorcycle",
+        16: "on-rails",
+        18: "truck",
+        20: "other-vehicle",
+        30: "person",
+        31: "bicyclist",
+        32: "motorcyclist",
+        40: "road",
+        44: "parking",
+        48: "sidewalk",
+        49: "other-ground",
+        50: "building",
+        51: "fence",
+        52: "other-structure",
+        60: "lane-marking",
+        70: "vegetation",
+        71: "trunk",
+        72: "terrain",
+        80: "pole",
+        81: "traffic-sign",
+        99: "other-object",
+        252: "moving-car",
+        253: "moving-bicyclist",
+        254: "moving-person",
+        255: "moving-motorcyclist",
+        256: "moving-on-rails",
+        257: "moving-bus",
+        258: "moving-truck",
+        259: "moving-other",
+    }
+
+
 def get_color_map() -> Dict:
     """
     Reference:

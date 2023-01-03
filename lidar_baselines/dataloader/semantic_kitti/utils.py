@@ -1,10 +1,12 @@
 import os
-from typing import Optional
+from typing import Optional, Dict
 
 import numpy as np
 import open3d as o3d
 
 import wandb
+
+from .maps import get_label_to_name
 
 
 def visualize_point_cloud_with_intensity(point_cloud, intensity):
@@ -90,3 +92,24 @@ def visualize_point_cloud_with_labels(
         wandb_3d_object = wandb.Object3D(open("voxel_mesh.glb"))
         os.remove("voxel_mesh.glb")
         return wandb_3d_object
+
+
+def compute_class_frequency(labels):
+    label_dict = {value: key for key, value in get_label_to_name().items()}
+    labels = [get_label_to_name()[label] for label in labels.flatten().tolist()]
+    frequency_dict = {key: labels.count(key) for key in label_dict.keys()}
+    return frequency_dict
+
+
+def plot_frequency_dict(frequency_dict: Dict, chart_title: str):
+    data = [[label, val] for (label, val) in frequency_dict.items()]
+    wandb.log(
+        {
+            chart_title: wandb.plot.bar(
+                wandb.Table(data=data, columns=["Category", "Frequency"]),
+                "Category",
+                "Frequency",
+                title=chart_title,
+            )
+        }
+    )

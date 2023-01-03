@@ -1,6 +1,6 @@
 import os
 from glob import glob
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 from tqdm.auto import tqdm
@@ -8,10 +8,12 @@ from tqdm.auto import tqdm
 import wandb
 
 from .laserscan import SemLaserScan
-from .maps import get_color_map, get_label_map
+from .maps import get_color_map, get_label_map, get_label_to_name
 from .utils import (
     visualize_point_cloud_with_intensity,
     visualize_point_cloud_with_labels,
+    compute_class_frequency,
+    plot_frequency_dict,
 )
 
 
@@ -33,6 +35,11 @@ class SemanticKITTIConverter:
             nclasses=len(self.color_map), sem_color_dict=self.color_map, project=True
         )
         self.vfunc_get_label = np.vectorize(self.label_map.get)
+        columns = ["Sequence-ID", "Semantic-Labels", "Depth", "Intensity"]
+        self.categories = [value for _, value in get_label_to_name().items()]
+        columns += ["Frequency-" + category for category in self.categories]
+        self.table = wandb.Table(columns=columns)
+        self.global_frequency_dict = {category: 0 for category in self.categories}
 
     def __len__(self):
         return len(self.lidar_scans)
@@ -62,9 +69,7 @@ class SemanticKITTIConverter:
 
         return lidar_scans, lidar_labels
 
-    def extract_tensor(
-        self, lidar_scan, lidar_label, table: Optional[wandb.Table] = None
-    ):
+    def extract_tensor(self, lidar_scan, lidar_label):
         self.laser_scan.open_scan(lidar_scan)
         self.laser_scan.open_label(lidar_label)
 
@@ -96,7 +101,11 @@ class SemanticKITTIConverter:
                     for label in self.laser_scan.proj_sem_label.flatten().tolist()
                 ]
             )
-            table.add_data(
+            frequency_dict = compute_class_frequency(self.laser_scan.proj_sem_label)
+            for key, value in frequency_dict.items():
+                self.global_frequency_dict[key] += value
+
+            self.table.add_data(
                 self.sequence_id,
                 visualize_point_cloud_with_labels(
                     self.laser_scan.proj_xyz, point_cloud_label
@@ -107,25 +116,26 @@ class SemanticKITTIConverter:
                 visualize_point_cloud_with_intensity(
                     self.laser_scan.proj_xyz, self.laser_scan.proj_remission
                 ),
+                *[frequency_dict[category] for category in self.categories],
             )
 
-        return combined_tensor, table
+        return combined_tensor
 
     def save_data(self, output_dir: Optional[str] = None):
         if output_dir is None:
             sequence_dir = os.path.join(output_dir, self.sequence_id)
             os.makedirs(sequence_dir, exist_ok=True)
 
-        table = wandb.Table(
-            columns=["Sequence-ID", "Semantic-Labels", "Depth", "Intensity"]
-        )
-
         for index, (lidar_scan, lidar_label) in tqdm(
             enumerate(zip(self.lidar_scans, self.lidar_labels)),
             total=len(self.lidar_scans),
         ):
-            data_tensor, table = self.extract_tensor(lidar_scan, lidar_label, table)
+            data_tensor = self.extract_tensor(lidar_scan, lidar_label)
             if output_dir is None:
                 np.save(os.path.join(sequence_dir, f"{index}.npy"), data_tensor)
 
-        wandb.log({"Semantic-KITTI": table})
+        plot_frequency_dict(
+            self.global_frequency_dict,
+            chart_title=f"Freqency Distribution for Sequence {self.sequence_id}",
+        )
+        wandb.log({"Semantic-KITTI": self.table})
