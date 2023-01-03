@@ -1,12 +1,18 @@
 import os
 from glob import glob
+from typing import Optional
 
-import wandb
 import numpy as np
 from tqdm.auto import tqdm
 
+import wandb
+
 from .laserscan import SemLaserScan
-from .commons import get_label_map, get_color_map
+from .maps import get_color_map, get_label_map
+from .utils import (
+    visualize_point_cloud_with_intensity,
+    visualize_point_cloud_with_labels,
+)
 
 
 class SemanticKITTIConverter:
@@ -19,6 +25,7 @@ class SemanticKITTIConverter:
     def __init__(self, artifact_address: str, sequence_id: str) -> None:
         self.artifact_address = artifact_address
         self.sequence_id = sequence_id
+        self.resolution = [64, 1024]
         self.label_map = get_label_map()
         self.color_map = get_color_map()
         self.lidar_scans, self.lidar_labels = self.get_lidar_scan_paths()
@@ -55,7 +62,9 @@ class SemanticKITTIConverter:
 
         return lidar_scans, lidar_labels
 
-    def extract_tensor(self, lidar_scan, lidar_label):
+    def extract_tensor(
+        self, lidar_scan, lidar_label, table: Optional[wandb.Table] = None
+    ):
         self.laser_scan.open_scan(lidar_scan)
         self.laser_scan.open_label(lidar_label)
 
@@ -66,28 +75,57 @@ class SemanticKITTIConverter:
         self.laser_scan.proj_xyz[~mask] = 0.0
         self.laser_scan.proj_remission[~mask] = 0.0
 
-        # map class labels to values between 0 and 33
-        self.laser_scan.proj_sem_label = self.vfunc_get_label(
-            self.laser_scan.proj_sem_label
-        )
-
         # shape (64, 1024, 6)
-        return np.concatenate(
+        combined_tensor = np.concatenate(
             [
                 self.laser_scan.proj_xyz,
-                self.laser_scan.proj_remission.reshape((64, 1024, 1)),
-                self.laser_scan.proj_range.reshape((64, 1024, 1)),
-                self.laser_scan.proj_sem_label.reshape((64, 1024, 1)),
+                self.laser_scan.proj_remission.reshape((*self.resolution, 1)),
+                self.laser_scan.proj_range.reshape((*self.resolution, 1)),
+                # map class labels to values between 0 and 33
+                self.vfunc_get_label(self.laser_scan.proj_sem_label).reshape(
+                    (*self.resolution, 1)
+                ),
             ],
             axis=2,
         )
 
-    def save_data(self, output_dir):
-        sequence_dir = os.path.join(output_dir, self.sequence_id)
-        os.makedirs(sequence_dir, exist_ok=True)
+        if wandb.run is not None:
+            point_cloud_label = np.array(
+                [
+                    np.array(self.color_map[label])
+                    for label in self.laser_scan.proj_sem_label.flatten().tolist()
+                ]
+            )
+            table.add_data(
+                self.sequence_id,
+                visualize_point_cloud_with_labels(
+                    self.laser_scan.proj_xyz, point_cloud_label
+                ),
+                visualize_point_cloud_with_intensity(
+                    self.laser_scan.proj_xyz, self.laser_scan.proj_range
+                ),
+                visualize_point_cloud_with_intensity(
+                    self.laser_scan.proj_xyz, self.laser_scan.proj_remission
+                ),
+            )
+
+        return combined_tensor, table
+
+    def save_data(self, output_dir: Optional[str] = None):
+        if output_dir is None:
+            sequence_dir = os.path.join(output_dir, self.sequence_id)
+            os.makedirs(sequence_dir, exist_ok=True)
+
+        table = wandb.Table(
+            columns=["Sequence-ID", "Semantic-Labels", "Depth", "Intensity"]
+        )
+
         for index, (lidar_scan, lidar_label) in tqdm(
             enumerate(zip(self.lidar_scans, self.lidar_labels)),
             total=len(self.lidar_scans),
         ):
-            data_tensor = self.extract_tensor(lidar_scan, lidar_label)
-            np.save(os.path.join(sequence_dir, f"{index}.npy"), data_tensor)
+            data_tensor, table = self.extract_tensor(lidar_scan, lidar_label, table)
+            if output_dir is None:
+                np.save(os.path.join(sequence_dir, f"{index}.npy"), data_tensor)
+
+        wandb.log({"Semantic-KITTI": table})
