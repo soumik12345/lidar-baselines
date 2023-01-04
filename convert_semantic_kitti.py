@@ -24,10 +24,14 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    run_name = "numpy-conversion/semantic-kitti/"
+    run_name += f"{args.sequence_id}/"
+    run_name += f"split-{args.lower_bound_index}-{args.upper_bound_index}"
+
     with wandb.init(
         project="point-cloud-voxelize",
         entity="geekyrakshit",
-        name=f"numpy-conversion/semantic-kitti/{args.sequence_id}",
+        name=run_name,
         job_type="numpy-conversion",
     ):
         converter = SemanticKITTIConverter(
