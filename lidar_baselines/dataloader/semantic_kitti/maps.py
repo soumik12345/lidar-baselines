@@ -133,3 +133,53 @@ def get_color_map() -> Dict:
         258: [180, 30, 80],
         259: [255, 0, 0],
     }
+
+
+def get_segmentation_classes() -> Dict:
+    return {
+        0: "None",
+        1: "car",
+        2: "bicycle",
+        3: "motorcycle",
+        4: "truck",
+        5: "other-vehicle",
+        6: "person",
+        7: "bicyclist",
+        8: "motorcyclist",
+        9: "road",
+        10: "parking",
+        11: "sidewalk",
+        12: "other-ground",
+        13: "building",
+        14: "fence",
+        15: "vegetation",
+        16: "trunk",
+        17: "terrain",
+        18: "pole",
+        19: "traffic-sign",
+    }
+
+
+def get_segmentation_colors() -> Dict:
+    return {
+        0: [0, 0, 0],
+        1: [245, 150, 100],
+        2: [245, 230, 100],
+        3: [150, 60, 30],
+        4: [180, 30, 80],
+        5: [255, 0, 0],
+        6: [30, 30, 255],
+        7: [200, 40, 255],
+        8: [90, 30, 150],
+        9: [255, 0, 255],
+        10: [255, 150, 255],
+        11: [75, 0, 75],
+        12: [75, 0, 175],
+        13: [0, 200, 255],
+        14: [50, 120, 255],
+        15: [0, 175, 0],
+        16: [0, 60, 135],
+        17: [80, 240, 150],
+        18: [150, 240, 255],
+        19: [0, 0, 255],
+    }

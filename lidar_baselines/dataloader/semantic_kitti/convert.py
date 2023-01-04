@@ -139,3 +139,7 @@ class SemanticKITTIConverter:
             chart_title=f"Freqency Distribution for Sequence {self.sequence_id}",
         )
         wandb.log({"Semantic-KITTI": self.table})
+
+        artifact = wandb.Artifact("semantic-kitti", type="numpy_data")
+        artifact.add_dir(output_dir)
+        wandb.log_artifact(artifact, aliases=["numpy", f"sequence_{self.sequence_id}"])
