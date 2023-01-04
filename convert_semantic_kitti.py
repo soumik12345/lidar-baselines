@@ -11,6 +11,12 @@ if __name__ == "__main__":
         "--sequence_id", type=str, required=True, help="Semantic-KITTI sequence ID"
     )
     parser.add_argument(
+        "--lower_bound_index", type=int, required=True, help="Lower bound index"
+    )
+    parser.add_argument(
+        "--upper_bound_index", type=int, required=True, help="Upper bound index"
+    )
+    parser.add_argument(
         "--output_dir",
         type=str,
         default="semantic_kitti_data",
@@ -28,4 +34,8 @@ if __name__ == "__main__":
             artifact_address="geekyrakshit/point-cloud-voxelize/semantic-kitti:v1",
             sequence_id=args.sequence_id,
         )
-        converter.save_data(output_dir=args.output_dir)
+        converter.save_data(
+            output_dir=args.output_dir,
+            lower_bound_index=args.lower_bound_index,
+            upper_bound_index=args.upper_bound_index,
+        )
