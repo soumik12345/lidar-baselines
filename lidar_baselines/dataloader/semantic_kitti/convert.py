@@ -1,5 +1,4 @@
 import os
-import shutil
 from glob import glob
 from typing import Optional, List
 
@@ -125,7 +124,15 @@ class SemanticKITTIConverter:
     def save_numpy_dataset_as_artifact(
         self, output_dir, lower_bound_index, upper_bound_index
     ):
-        artifact = wandb.Artifact("semantic-kitti-numpy", type="dataset")
+        artifact = wandb.Artifact(
+            "semantic-kitti-numpy",
+            type="numpy-dataset",
+            metadata={
+                "sequence_id": self.sequence_id,
+                "lower_bound_index": lower_bound_index,
+                "upper_bound_index": upper_bound_index,
+            },
+        )
         artifact.add_dir(output_dir)
         wandb.log_artifact(
             artifact,
@@ -177,7 +184,7 @@ class SemanticKITTIConverter:
 
         for index, (lidar_scan, lidar_label) in progress_bar:
             data_tensor = self.extract_tensor(lidar_scan, lidar_label)
-            if output_dir is None:
+            if output_dir is not None:
                 np.save(os.path.join(sequence_dir, f"{index}.npy"), data_tensor)
 
         plot_frequency_dict(
@@ -189,5 +196,3 @@ class SemanticKITTIConverter:
         self.save_numpy_dataset_as_artifact(
             output_dir, lower_bound_index, upper_bound_index
         )
-
-        shutil.rmtree(output_dir)

@@ -1,7 +1,8 @@
-import wandb
 import argparse
-from lidar_baselines.dataloader.semantic_kitti import SemanticKITTIConverter
+import shutil
 
+import wandb
+from lidar_baselines.dataloader.semantic_kitti import SemanticKITTIConverter
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -43,3 +44,5 @@ if __name__ == "__main__":
             lower_bound_index=args.lower_bound_index,
             upper_bound_index=args.upper_bound_index,
         )
+
+    shutil.rmtree(args.output_dir)
