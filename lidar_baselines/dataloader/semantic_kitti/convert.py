@@ -125,7 +125,7 @@ class SemanticKITTIConverter:
         self, output_dir, lower_bound_index, upper_bound_index
     ):
         artifact = wandb.Artifact(
-            "semantic-kitti-numpy",
+            f"semantic-kitti-numpy-{self.sequence_id}",
             type="numpy-dataset",
             metadata={
                 "sequence_id": self.sequence_id,
@@ -136,10 +136,7 @@ class SemanticKITTIConverter:
         artifact.add_dir(output_dir)
         wandb.log_artifact(
             artifact,
-            aliases=[
-                f"sequence-{self.sequence_id}",
-                f"split-{lower_bound_index}-{upper_bound_index}",
-            ],
+            aliases=[f"split-{lower_bound_index}-{upper_bound_index}"],
         )
 
     def save_data(
