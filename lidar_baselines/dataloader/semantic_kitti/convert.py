@@ -69,7 +69,7 @@ class SemanticKITTIConverter:
 
         return lidar_scans, lidar_labels
 
-    def extract_tensor(self, lidar_scan, lidar_label):
+    def extract_tensor(self, lidar_scan, lidar_label, sequence_dir, index):
         self.laser_scan.open_scan(lidar_scan)
         self.laser_scan.open_label(lidar_label)
 
@@ -119,7 +119,7 @@ class SemanticKITTIConverter:
                 *[frequency_dict[category] for category in self.categories],
             )
 
-        return combined_tensor
+        np.save(os.path.join(sequence_dir, f"{index}.npy"), combined_tensor)
 
     def save_numpy_dataset_as_artifact(
         self, output_dir, lower_bound_index, upper_bound_index
@@ -183,9 +183,7 @@ class SemanticKITTIConverter:
             )
 
         for index, (lidar_scan, lidar_label) in progress_bar:
-            data_tensor = self.extract_tensor(lidar_scan, lidar_label)
-            if output_dir is not None:
-                np.save(os.path.join(sequence_dir, f"{index}.npy"), data_tensor)
+            self.extract_tensor(lidar_scan, lidar_label, sequence_dir, index)
 
         plot_frequency_dict(
             self.global_frequency_dict,
