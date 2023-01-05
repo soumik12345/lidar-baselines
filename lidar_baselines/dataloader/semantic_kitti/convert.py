@@ -185,10 +185,7 @@ class SemanticKITTIConverter:
         for index, (lidar_scan, lidar_label) in progress_bar:
             self.extract_tensor(lidar_scan, lidar_label, sequence_dir, index)
 
-        plot_frequency_dict(
-            self.global_frequency_dict,
-            chart_title=f"Freqency Distribution for Sequence {self.sequence_id}",
-        )
+        plot_frequency_dict(self.global_frequency_dict, self.sequence_id)
         wandb.log({"Semantic-KITTI": self.table})
 
         self.save_numpy_dataset_as_artifact(

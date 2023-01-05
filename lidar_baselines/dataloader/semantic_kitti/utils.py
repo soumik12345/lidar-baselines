@@ -109,12 +109,15 @@ def compute_class_frequency(labels):
     return frequency_dict
 
 
-def plot_frequency_dict(frequency_dict: Dict, chart_title: str):
-    data = [[label, val] for (label, val) in frequency_dict.items()]
+def plot_frequency_dict(frequency_dict: Dict, sequence_id: str):
+    data = [[sequence_id, label, val] for (label, val) in frequency_dict.items()]
+    chart_title = "Class Freqency Distribution"
     wandb.log(
         {
             chart_title: wandb.plot.bar(
-                wandb.Table(data=data, columns=["Category", "Frequency"]),
+                wandb.Table(
+                    data=data, columns=["Sequence-ID", "Category", "Frequency"]
+                ),
                 "Category",
                 "Frequency",
                 title=chart_title,
