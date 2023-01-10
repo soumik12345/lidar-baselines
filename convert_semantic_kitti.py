@@ -24,17 +24,25 @@ if __name__ == "__main__":
         default="semantic_kitti_data",
         help="Output directory for dumping the converted data",
     )
+    parser.add_argument(
+        "--visualize",
+        action="store_true",
+        help="Produce visualizations on WandB or not",
+    )
     args = parser.parse_args()
 
     run_name = "semantic-kitti/"
     run_name += f"{args.sequence_id}/"
     run_name += f"{args.lower_bound_index}-{args.upper_bound_index}"
 
+    job_type = "numpy-conversion"
+    job_type = job_type + "-noviz" if not args.visualize else job_type
+
     with wandb.init(
         project="point-cloud-voxelize",
         entity="geekyrakshit",
         name=run_name,
-        job_type="numpy-conversion",
+        job_type=job_type,
         tags=[
             "semantic-kitti",
             "numpy-conversion",
