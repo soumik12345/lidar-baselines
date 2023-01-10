@@ -9,6 +9,22 @@ import wandb
 from .maps import get_label_to_name
 
 
+class RunningStd(object):
+    def __init__(self):
+        self.s0, self.s1, self.s2 = 0.0, 0.0, 0.0
+
+    def include(self, array):
+        self.s0 += array.size
+        self.s1 += np.sum(array)
+        self.s2 += np.sum(np.square(array))
+
+    @property
+    def std(self):
+        return np.sqrt(
+            (self.s0 * self.s2 - self.s1 * self.s1) / (self.s0 * (self.s0 - 1))
+        )
+
+
 def voxelize_point_cloud(
     point_cloud, point_cloud_colors, voxel_size, voxel_size_factor, voxel_size_precision
 ) -> wandb.Object3D:
