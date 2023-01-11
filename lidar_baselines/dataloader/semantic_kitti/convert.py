@@ -1,8 +1,9 @@
 import os
 from glob import glob
-from typing import Optional
+from typing import Optional, List, Dict
 
 import numpy as np
+import tensorflow as tf
 from tqdm.auto import tqdm
 
 import wandb
@@ -10,10 +11,10 @@ import wandb
 from .laserscan import SemLaserScan
 from .maps import get_color_map, get_label_map, get_label_to_name
 from .utils import (
-    visualize_point_cloud_with_intensity,
-    visualize_point_cloud_with_labels,
     compute_class_frequency,
     plot_frequency_dict,
+    visualize_point_cloud_with_intensity,
+    visualize_point_cloud_with_labels,
 )
 
 
@@ -197,3 +198,38 @@ class SemanticKITTIConverter:
         self.save_numpy_dataset_as_artifact(
             output_dir, lower_bound_index, upper_bound_index, log_visualizations
         )
+
+
+class SemanticKITTITFRecordConverter:
+    def __init__(
+        self,
+        numpy_dataset_artifact_address: str,
+        input_mean: List,
+        input_std: List,
+        categories: List,
+        class_weight: List,
+        color_map: List[List],
+    ):
+        self.numpy_dataset_artifact_address = numpy_dataset_artifact_address
+        self.input_mean = input_mean
+        self.input_std = input_std
+        self.categories = categories
+        self.class_weight = class_weight
+        self.color_map = color_map
+        self.fetch_numpy_dataset_artifact()
+
+    def fetch_numpy_dataset_artifact(self):
+        numpy_dataset_artifact = (
+            wandb.Api().artifact(
+                self.numpy_dataset_artifact_address, type="numpy-dataset"
+            )
+            if wandb.run is None
+            else wandb.use_artifact(
+                self.numpy_dataset_artifact_address, type="numpy-dataset"
+            )
+        )
+        artifact_dir = numpy_dataset_artifact.download()
+        self.numpy_dataset_paths = glob(os.path.join(artifact_dir, "*", "*.npy"))
+
+    def __len__(self):
+        return len(self.numpy_dataset_paths)
