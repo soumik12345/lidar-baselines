@@ -59,6 +59,7 @@ if __name__ == "__main__":
             output_dir=args.output_dir,
             lower_bound_index=args.lower_bound_index,
             upper_bound_index=args.upper_bound_index,
+            log_visualizations=args.visualize,
         )
 
     shutil.rmtree(args.output_dir)
