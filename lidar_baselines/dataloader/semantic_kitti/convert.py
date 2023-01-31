@@ -15,7 +15,15 @@ from .utils import (
     plot_frequency_dict,
     visualize_point_cloud_with_intensity,
     visualize_point_cloud_with_labels,
+    create_tfrecord_feature,
 )
+
+
+def bytes_feature(value):
+    """Returns a bytes_list from a string / byte."""
+    if isinstance(value, type(tf.constant(0))):  # if value ist tensor
+        value = value.numpy()  # get value of tensor
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
 class SemanticKITTIConverter:
@@ -211,8 +219,8 @@ class SemanticKITTITFRecordConverter:
         color_map: List[List],
     ):
         self.numpy_dataset_artifact_address = numpy_dataset_artifact_address
-        self.input_mean = input_mean
-        self.input_std = input_std
+        self.input_mean = np.array([[input_mean]])
+        self.input_std = np.array([[input_std]])
         self.categories = categories
         self.class_weight = class_weight
         self.color_map = color_map
@@ -233,3 +241,58 @@ class SemanticKITTITFRecordConverter:
 
     def __len__(self):
         return len(self.numpy_dataset_paths)
+
+    def create_example(self, numpy_file_path: tf.Tensor):
+        # Load numpy file
+        numpy_data = np.load(numpy_file_path.numpy()).astype(np.float32, copy=False)
+
+        input_data = numpy_data[:, :, :5]  # Get point cloud, intensity and depth
+        segmentation_labels = numpy_data[:, :, 5]  # Get segmentation labels
+
+        # Create a binary mask to cover only positive depth
+        lidar_mask = input_data[:, :, 4] > 0
+
+        # Normalize input data using the mean and standard deviation
+        input_data = (input_data - self.input_mean) / self.input_std
+
+        # Apply mask on input data and segmentation labels
+        input_data[~lidar_mask] = 0.0
+        segmentation_labels[~lidar_mask] = self.categories.index("None")
+
+        # Append mask to input data
+        input_data = np.append(input_data, np.expand_dims(lidar_mask, -1), axis=2)
+
+        # construct class-wise weighting defined in the configuration
+        class_weight = np.zeros(segmentation_labels.shape)
+        for l in range(len(self.categories)):
+            class_weight[segmentation_labels == l] = self.class_weight[int(l)]
+
+        example = tf.train.Example(
+            features=tf.train.Features(
+                feature={
+                    "input_data": create_tfrecord_feature(input_data.astype("float32")),
+                    "lidar_mask": create_tfrecord_feature(lidar_mask.astype("bool")),
+                    "segmentation_labels": create_tfrecord_feature(
+                        segmentation_labels.astype("int32")
+                    ),
+                    "class_weight": create_tfrecord_feature(
+                        class_weight.astype("float32")
+                    ),
+                }
+            )
+        )
+
+        return example.SerializeToString()
+
+    def serialize_example(self, numpy_file_path: tf.Tensor):
+        return tf.reshape(
+            tf.py_function(self.create_example, [numpy_file_path], tf.string), ()
+        )
+
+    def create_tfrecord(self, output_file: str):
+        dataset = tf.data.Dataset.from_tensor_slices(self.numpy_dataset_paths)
+        dataset = dataset.map(
+            self.serialize_example, num_parallel_calls=tf.data.AUTOTUNE
+        )
+        tfrecord_writer = tf.data.experimental.TFRecordWriter(output_file)
+        tfrecord_writer.write(dataset)

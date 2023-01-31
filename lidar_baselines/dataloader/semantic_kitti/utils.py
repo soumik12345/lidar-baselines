@@ -3,6 +3,7 @@ from typing import Optional, Dict
 
 import numpy as np
 import open3d as o3d
+import tensorflow as tf
 
 import wandb
 
@@ -140,3 +141,8 @@ def plot_frequency_dict(frequency_dict: Dict, sequence_id: str):
             )
         }
     )
+
+
+def create_tfrecord_feature(np_array: np.ndarray):
+    serialized_tensor = tf.io.serialize_tensor(np_array).numpy()
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[serialized_tensor]))
