@@ -242,9 +242,9 @@ class SemanticKITTITFRecordConverter:
     def __len__(self):
         return len(self.numpy_dataset_paths)
 
-    def create_example(self, numpy_file_path: tf.Tensor):
+    def load_numpy_tensor(self, numpy_file_path: tf.Tensor):
         # Load numpy file
-        numpy_data = np.load(numpy_file_path.numpy()).astype(np.float32, copy=False)
+        numpy_data = np.load(numpy_file_path).astype(np.float32, copy=False)
 
         input_data = numpy_data[:, :, :5]  # Get point cloud, intensity and depth
         segmentation_labels = numpy_data[:, :, 5]  # Get segmentation labels
@@ -267,32 +267,45 @@ class SemanticKITTITFRecordConverter:
         for l in range(len(self.categories)):
             class_weight[segmentation_labels == l] = self.class_weight[int(l)]
 
-        example = tf.train.Example(
+        return (
+            input_data.astype("float32"),
+            lidar_mask.astype("bool"),
+            segmentation_labels.astype("int32"),
+            class_weight.astype("float32"),
+        )
+
+    def create_example(self, numpy_file_path: tf.Tensor):
+        (
+            input_data,
+            lidar_mask,
+            segmentation_labels,
+            class_weight,
+        ) = self.load_numpy_tensor(numpy_file_path)
+        return tf.train.Example(
             features=tf.train.Features(
                 feature={
-                    "input_data": create_tfrecord_feature(input_data.astype("float32")),
-                    "lidar_mask": create_tfrecord_feature(lidar_mask.astype("bool")),
-                    "segmentation_labels": create_tfrecord_feature(
-                        segmentation_labels.astype("int32")
-                    ),
-                    "class_weight": create_tfrecord_feature(
-                        class_weight.astype("float32")
-                    ),
+                    "input_data": create_tfrecord_feature(input_data),
+                    "lidar_mask": create_tfrecord_feature(lidar_mask),
+                    "segmentation_labels": create_tfrecord_feature(segmentation_labels),
+                    "class_weight": create_tfrecord_feature(class_weight),
                 }
             )
         )
 
-        return example.SerializeToString()
-
-    def serialize_example(self, numpy_file_path: tf.Tensor):
-        return tf.reshape(
-            tf.py_function(self.create_example, [numpy_file_path], tf.string), ()
+    def create_tfrecord(self, output_dir: str):
+        os.makedirs(output_dir, exist_ok=True)
+        pbar = tqdm(
+            enumerate(self.numpy_dataset_paths),
+            total=len(self.numpy_dataset_paths),
+            desc="Creating TFRecords",
         )
-
-    def create_tfrecord(self, output_file: str):
-        dataset = tf.data.Dataset.from_tensor_slices(self.numpy_dataset_paths)
-        dataset = dataset.map(
-            self.serialize_example, num_parallel_calls=tf.data.AUTOTUNE
-        )
-        tfrecord_writer = tf.data.experimental.TFRecordWriter(output_file)
-        tfrecord_writer.write(dataset)
+        for idx, numpy_file in pbar:
+            semantic_kitti_split = self.numpy_dataset_artifact_address.split(":")[
+                0
+            ].split("-")[-1]
+            pbar.set_description(f"Creating TFRecords for split {semantic_kitti_split}")
+            with tf.io.TFRecordWriter(
+                os.path.join(output_dir, f"split-{semantic_kitti_split}-{idx}.tfrecord")
+            ) as writer:
+                example = self.create_example(numpy_file)
+                writer.write(example.SerializeToString())

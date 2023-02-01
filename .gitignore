@@ -131,3 +131,6 @@ dmypy.json
 # WandB
 wandb/
 artifacts/
+
+# Dataset
+tfrecords/

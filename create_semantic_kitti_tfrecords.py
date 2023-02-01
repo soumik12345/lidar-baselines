@@ -1,7 +1,10 @@
+import os
 import wandb
 import argparse
 import numpy as np
+from glob import glob
 from tqdm.auto import tqdm
+from google.cloud import storage
 
 from lidar_baselines.dataloader.semantic_kitti.convert import (
     SemanticKITTITFRecordConverter,
@@ -22,6 +25,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--wandb_entity", type=str, required=True, help="Weights & Biases Entity"
     )
+    parser.add_argument("--gc_project", type=str, help="Name of Google Cloud Project")
+    parser.add_argument("--gs_bucket", type=str, help="Name of Google Storage Bucket")
     args = parser.parse_args()
 
     wandb.init(
@@ -29,6 +34,8 @@ if __name__ == "__main__":
         entity=args.wandb_entity,
         job_type="tfrecord-conversion",
     )
+
+    storage_client = storage.Client(project=args.gc_project)
 
     color_map = get_segmentation_colors()
     segmentation_classes = get_segmentation_classes()
@@ -46,11 +53,9 @@ if __name__ == "__main__":
         order="+display_name",
     )
 
-    for inspection_run in tqdm(inspection_runs):
+    for inspection_run in inspection_runs:
         split_name = inspection_run.display_name.split("/")[-1]
-        numpy_dataset_artifact_address = (
-            f"geekyrakshit/point-cloud-voxelize/semantic-kitti-numpy-{split_name}:latest"
-        )
+        numpy_dataset_artifact_address = f"geekyrakshit/point-cloud-voxelize/semantic-kitti-numpy-{split_name}:latest"
         output_file = f"semantic-kitti-{split_name}.tfrecord"
 
         input_mean = [
@@ -76,12 +81,23 @@ if __name__ == "__main__":
             class_weight=np.ones(num_classes),
             color_map=color_map,
         )
-        tfrecord_converter.create_tfrecord(output_file=output_file)
+        tfrecord_converter.create_tfrecord(output_dir=f"tfrecords/{split_name}")
+
+        bucket = storage_client.get_bucket(args.gs_bucket)
+
+        for filepath in tqdm(
+            glob(os.path.join("tfrecords", split_name, "*.tfrecord")),
+            desc=f"Uploading TFRecords for split {split_name} to gs://{args.gs_bucket}",
+        ):
+            blob = bucket.blob(filepath)
+            blob.upload_from_filename(filepath)
 
         artifact = wandb.Artifact(
             f"Semantic-KITTI-{split_name}", type="TFRecord-Dataset"
         )
-        artifact.add_file(output_file)
+        artifact.add_reference(
+            os.path.join("gs://", args.gs_bucket, "tfrecords", split_name)
+        )
         wandb.log_artifact(artifact)
 
     wandb.finish()
