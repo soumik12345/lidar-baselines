@@ -211,38 +211,6 @@ class SemanticKITTIConverter:
             save_dir, lower_bound_index, upper_bound_index
         )
 
-    def save_sequence(
-        self,
-        split_size: int,
-        wandb_project: Optional[str] = None,
-        wandb_entity: Optional[str] = None,
-        output_dir: Optional[str] = None,
-        log_visualizations: bool = False,
-    ):
-        os.makedirs(output_dir, exist_ok=True)
-        for idx in range(0, len(self), split_size):
-            upper_bound_index = (
-                idx + split_size if idx + split_size < len(self) else len(self)
-            )
-            with wandb.init(
-                project=wandb_project,
-                entity=wandb_entity,
-                name=f"Semantic-KITTI/{self.sequence_id}/{idx}-{upper_bound_index}",
-                job_type="numpy-conversion",
-                tags=[
-                    "semantic-kitti",
-                    "numpy-conversion",
-                    f"sequence-{self.sequence_id}",
-                    f"split-{idx}-{upper_bound_index}",
-                ],
-            ):
-                self.save_data(
-                    output_dir=output_dir,
-                    lower_bound_index=idx,
-                    upper_bound_index=upper_bound_index,
-                    log_visualizations=log_visualizations,
-                )
-
 
 class SemanticKITTITFRecordConverter:
     def __init__(
