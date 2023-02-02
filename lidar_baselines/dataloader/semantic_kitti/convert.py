@@ -1,6 +1,6 @@
 import os
 from glob import glob
-from typing import Optional, List, Dict
+from typing import Optional, List
 
 import numpy as np
 import tensorflow as tf
@@ -17,13 +17,6 @@ from .utils import (
     visualize_point_cloud_with_labels,
     create_tfrecord_feature,
 )
-
-
-def bytes_feature(value):
-    """Returns a bytes_list from a string / byte."""
-    if isinstance(value, type(tf.constant(0))):  # if value ist tensor
-        value = value.numpy()  # get value of tensor
-    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 
 class SemanticKITTIConverter:
@@ -55,9 +48,9 @@ class SemanticKITTIConverter:
 
     def get_lidar_scan_paths(self):
         dataset_artifact = (
-            wandb.Api().artifact(self.artifact_address, type="dataset")
+            wandb.Api().artifact(self.artifact_address, type="raw_dataset")
             if wandb.run is None
-            else wandb.use_artifact(self.artifact_address, type="dataset")
+            else wandb.use_artifact(self.artifact_address, type="raw_dataset")
         )
         dataset_dir = dataset_artifact.download()
 
@@ -78,8 +71,13 @@ class SemanticKITTIConverter:
 
         return lidar_scans, lidar_labels
 
-    def extract_tensor(
-        self, lidar_scan, lidar_label, sequence_dir, index, log_visualizations
+    def extract_and_save_tensor(
+        self,
+        lidar_scan,
+        lidar_label,
+        index,
+        log_visualizations,
+        save_dir,
     ):
         self.laser_scan.open_scan(lidar_scan)
         self.laser_scan.open_label(lidar_label)
@@ -130,10 +128,13 @@ class SemanticKITTIConverter:
                 *[frequency_dict[category] for category in self.categories],
             )
 
-        np.save(os.path.join(sequence_dir, f"{index}.npy"), combined_tensor)
+        np.save(
+            os.path.join(save_dir, f"{index}.npy"),
+            combined_tensor,
+        )
 
     def save_numpy_dataset_as_artifact(
-        self, output_dir, lower_bound_index, upper_bound_index, log_visualizations
+        self, output_dir, lower_bound_index, upper_bound_index
     ):
         artifact = wandb.Artifact(
             f"semantic-kitti-numpy-{self.sequence_id}",
@@ -145,12 +146,7 @@ class SemanticKITTIConverter:
             },
         )
         artifact.add_dir(output_dir)
-        artifact_aliases = ["latest"]
-        artifact_aliases = (
-            artifact_aliases + [f"split-{lower_bound_index}-{upper_bound_index}"]
-            if not log_visualizations
-            else artifact_aliases
-        )
+        artifact_aliases = ["latest", f"split-{lower_bound_index}-{upper_bound_index}"]
         wandb.log_artifact(artifact, aliases=artifact_aliases)
 
     def save_data(
@@ -164,10 +160,12 @@ class SemanticKITTIConverter:
             sequence_dir = os.path.join(output_dir, self.sequence_id)
             os.makedirs(sequence_dir, exist_ok=True)
 
+        progress_bar_description = f"Converting scans to numpy for Sequence-{self.sequence_id} Split-{lower_bound_index}-{upper_bound_index}"
         if lower_bound_index is None or upper_bound_index is None:
             progress_bar = tqdm(
                 enumerate(zip(self.lidar_scans, self.lidar_labels)),
                 total=len(self.lidar_scans),
+                desc=progress_bar_description,
             )
         elif upper_bound_index > len(self.lidar_scans):
             progress_bar = tqdm(
@@ -178,6 +176,7 @@ class SemanticKITTIConverter:
                     )
                 ),
                 total=len(self.lidar_scans) - lower_bound_index,
+                desc=progress_bar_description,
             )
         elif lower_bound_index > len(self.lidar_scans):
             raise ValueError(
@@ -192,11 +191,16 @@ class SemanticKITTIConverter:
                     )
                 ),
                 total=upper_bound_index - lower_bound_index,
+                desc=progress_bar_description,
             )
 
+        save_dir = os.path.join(
+            sequence_dir, f"{lower_bound_index}-{upper_bound_index}"
+        )
+        os.makedirs(save_dir)
         for index, (lidar_scan, lidar_label) in progress_bar:
-            self.extract_tensor(
-                lidar_scan, lidar_label, sequence_dir, index, log_visualizations
+            self.extract_and_save_tensor(
+                lidar_scan, lidar_label, index, log_visualizations, save_dir
             )
 
         if log_visualizations:
@@ -204,8 +208,40 @@ class SemanticKITTIConverter:
             wandb.log({"Semantic-KITTI": self.table})
 
         self.save_numpy_dataset_as_artifact(
-            output_dir, lower_bound_index, upper_bound_index, log_visualizations
+            save_dir, lower_bound_index, upper_bound_index
         )
+
+    def save_sequence(
+        self,
+        split_size: int,
+        wandb_project: Optional[str] = None,
+        wandb_entity: Optional[str] = None,
+        output_dir: Optional[str] = None,
+        log_visualizations: bool = False,
+    ):
+        os.makedirs(output_dir, exist_ok=True)
+        for idx in range(0, len(self), split_size):
+            upper_bound_index = (
+                idx + split_size if idx + split_size < len(self) else len(self)
+            )
+            with wandb.init(
+                project=wandb_project,
+                entity=wandb_entity,
+                name=f"Semantic-KITTI/{self.sequence_id}/{idx}-{upper_bound_index}",
+                job_type="numpy-conversion",
+                tags=[
+                    "semantic-kitti",
+                    "numpy-conversion",
+                    f"sequence-{self.sequence_id}",
+                    f"split-{idx}-{upper_bound_index}",
+                ],
+            ):
+                self.save_data(
+                    output_dir=output_dir,
+                    lower_bound_index=idx,
+                    upper_bound_index=upper_bound_index,
+                    log_visualizations=log_visualizations,
+                )
 
 
 class SemanticKITTITFRecordConverter:

@@ -134,3 +134,4 @@ artifacts/
 
 # Dataset
 tfrecords/
+semantic_kitti_data/
