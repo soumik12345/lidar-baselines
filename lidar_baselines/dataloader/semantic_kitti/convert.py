@@ -137,7 +137,7 @@ class SemanticKITTIConverter:
         self, output_dir, lower_bound_index, upper_bound_index
     ):
         artifact = wandb.Artifact(
-            f"semantic-kitti-numpy-{self.sequence_id}",
+            f"semantic-kitti-{self.sequence_id}-{lower_bound_index}-{upper_bound_index}",
             type="numpy-dataset",
             metadata={
                 "sequence_id": self.sequence_id,
