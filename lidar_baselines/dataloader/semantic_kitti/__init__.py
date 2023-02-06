@@ -1,2 +1,2 @@
-from .convert import SemanticKITTIConverter
+from .convert import SemanticKITTIConverter, SemanticKITTITFRecordConverter
 from .inspect import SemanticKITTIInspector
