@@ -1,5 +1,6 @@
 import os
 from glob import glob
+from typing import List
 
 import wandb
 import numpy as np
@@ -9,8 +10,8 @@ from .utils import RunningStd
 
 
 class SemanticKITTIInspector:
-    def __init__(self, sequence_artifact_address: str) -> None:
-        self.sequence_artifact_address = sequence_artifact_address
+    def __init__(self, sequence_artifact_addresses: List[str]) -> None:
+        self.sequence_artifact_addresses = sequence_artifact_addresses
         self.numpy_files_path = []
         self.means = {
             "lidar_scan": {"x": [], "y": [], "z": []},
@@ -28,15 +29,14 @@ class SemanticKITTIInspector:
         return len(self.numpy_files_path)
 
     def fetch_sequence_artifacts(self):
-        sequence_split_artifact = (
-            wandb.Api().artifact(self.sequence_artifact_address, type="numpy-dataset")
-            if wandb.run is None
-            else wandb.use_artifact(
-                self.sequence_artifact_address, type="numpy-dataset"
+        for sequence_artifact_address in self.sequence_artifact_addresses:
+            sequence_split_artifact = (
+                wandb.Api().artifact(sequence_artifact_address, type="numpy-dataset")
+                if wandb.run is None
+                else wandb.use_artifact(sequence_artifact_address, type="numpy-dataset")
             )
-        )
-        artifact_dir = sequence_split_artifact.download()
-        self.numpy_files_path = glob(os.path.join(artifact_dir, "*", "*.npy"))
+            artifact_dir = sequence_split_artifact.download()
+            self.numpy_files_path += glob(os.path.join(artifact_dir, "*.npy"))
 
     def compute_means(self, lidar_data=None, lidar_mask=None):
         if lidar_data is not None and lidar_mask is not None:
